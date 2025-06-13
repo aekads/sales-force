@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Salesforce UI Replica</title>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
   <style>
     body {
       background-color: #ebf5fd;
@@ -422,19 +424,30 @@
         <button type="button" id="editBtn" style="border-radius: 4px 0px 0px 4px;">Edit</button>
         <button type="submit" id="saveBtn" style="display: none;">Save</button>
 
+ <button  type="button" style="border-radius: 0px 4px 4px 0px;" onclick="handleOwnershipButton('<%= enquiry.id %>')">Transfer Ownership</button>
+        <!-- <label for="account_owner_id_<%= enquiry.id %>">Transfer Ownership:</label> -->
+<!-- Visible button -->
+<!-- <button 
+  type="button"
+  style="border-radius: 0px 4px 4px 0px; margin-left: 5px;" 
+  onclick="handleOwnershipButton('<%= enquiry.id %>')"
+>
+  Transfer Ownership
+</button> -->
+<!-- Hidden dropdown -->
+<select 
+  id="account_owner_id_<%= enquiry.id %>" 
+  style="display: none; margin-left: 10px; border-radius: 4px;" 
+  data-enquiry-id="<%= enquiry.id %>"
+  required
+>
+  <option disabled selected>Select user</option>
+  <% salesUsers.forEach(user => { %>
+    <option value="<%= user.id %>"><%= user.name %></option>
+  <% }) %>
+</select>
 
-          <label  for="account_owner_id">Transfer Ownership:</label>
-          <select  style="border-radius: 0px 4px 4px 0px;"
-            id="account_owner_id"
-            style="margin-left: 10px; border-radius: 4px;" 
-            required
-            data-enquiry-id="<%= enquiry.id %>"
-          >
-            <option disabled selected>Select user</option>
-            <% salesUsers.forEach(user => { %>
-              <option value="<%= user.id %>"><%= user.name %></option>
-            <% }) %>
-          </select>
+
 
 
       </div>
@@ -741,23 +754,70 @@
 
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <script>
-  document.getElementById('account_owner_id').addEventListener('change', async function () {
-    const accountOwnerId = this.value;
-    const enquiryId = this.dataset.enquiryId;
+ function handleOwnershipButton(enquiryId) {
+    const select = document.getElementById(`account_owner_id_${enquiryId}`);
+    if (!select) return;
 
-    try {
-      const response = await axios.post(`/enquiry-inline/${enquiryId}`, {
-        account_owner_id: accountOwnerId
+    if (select.style.display === 'none') {
+      select.style.display = 'inline-block';
+      select.focus();
+
+      const event = new MouseEvent('mousedown', {
+        view: window,
+        bubbles: true,
+        cancelable: true
+      });
+      select.dispatchEvent(event);
+    }
+
+    if (!select.dataset.listenerAdded) {
+      select.addEventListener('change', async function () {
+        const accountOwnerId = this.value;
+        const enquiryId = this.dataset.enquiryId;
+
+        if (!accountOwnerId) return;
+
+        const selectedText = this.options[this.selectedIndex].text;
+
+        const result = await Swal.fire({
+          title: 'Are you sure?',
+          text: `Do you want to transfer ownership to "${selectedText}"?`,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#3085d6',
+          cancelButtonColor: '#d33',
+          confirmButtonText: 'Yes, transfer it!'
+        });
+
+        if (result.isConfirmed) {
+          try {
+            await axios.post(`/enquiry-inline/${enquiryId}`, {
+              account_owner_id: accountOwnerId
+            });
+
+            Swal.fire({
+              icon: 'success',
+              title: 'Transferred!',
+              text: `Ownership transferred to ${selectedText}`,
+              timer: 1500,
+              showConfirmButton: false
+            });
+
+            setTimeout(() => {
+              window.location.href = `/enquiry/${enquiryId}`;
+            }, 1600);
+
+          } catch (error) {
+            console.error('Transfer failed:', error);
+            Swal.fire('Error', 'Something went wrong.', 'error');
+          }
+        }
       });
 
-      // Optionally redirect or show success
-      window.location.href = `/enquiry/${enquiryId}`;
-    } catch (error) {
-      console.error('Ownership transfer failed:', error);
-      alert('Something went wrong while transferring ownership.');
+      select.dataset.listenerAdded = "true";
     }
-  });
+  }
+
 </script>
-    
 </body>                       
 </html>
